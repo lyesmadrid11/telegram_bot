@@ -73,9 +73,11 @@ def loop():
                     pass
                 time.sleep(0.3)
         time.sleep(1800)
-threading.Thread(target=loop, daemon=True).start()
 @app.route("/")
 def home():
     return "DIV BLUE Live"
-if __name__=="__main__":
-    app.run(host="0.0.0.0", port=10000)
+
+threading.Thread(target=loop, daemon=True).start()
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000))
