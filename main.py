@@ -1,4 +1,22 @@
-import os
+import threading, os
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# --- سيرفر وهمي باش Render يولي Live ---
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot CONFIRMED ONLY running")
+    def log_message(self, format, *args):
+        return
+
+def run_fake():
+    port = int(os.environ.get("PORT", 10000))
+    HTTPServer(("0.0.0.0", port), Handler).serve_forever()
+
+threading.Thread(target=run_fake, daemon=True).start()
+
+# --- الكود الأصلي تاعك كيما هو ---
 import time
 import requests
 import ccxt
@@ -10,16 +28,14 @@ CHAT_ID = os.getenv("CHAT_ID")
 
 # ── قائمتك برك 48 عملة لي بعثتها في التصاور ──
 COINS = [
-    "NIL/USDT", "DEXE/USDT", "ENSO/USDT", "HEMI/USDT", "ICP/USDT",
-    "PROM/USDT", "KERNEL/USDT", "SPK/USDT", "GLM/USDT", "MASK/USDT",
-    "DCR/USDT", "LTC/USDT", "EPIC/USDT", "BLUR/USDT", "KSM/USDT",
-    "SOMI/USDT", "AVAX/USDT", "SOL/USDT", "TNSR/USDT", "ORDI/USDT",
-    "CHZ/USDT", "BNB/USDT", "BTC/USDT", "XRP/USDT", "DOGE/USDT",
-    "REQ/USDT", "SFP/USDT", "SUI/USDT", "TRB/USDT", "ALLO/USDT",
-    "FIL/USDT", "DOT/USDT", "AR/USDT", "BIO/USDT", "NEAR/USDT",
-    "LINK/USDT", "PHA/USDT", "LDO/USDT", "ADA/USDT", "METIS/USDT",
-    "APT/USDT", "RENDER/USDT", "PEPE/USDT", "EDEN/USDT", "BAT/USDT",
-    "WLD/USDT", "BEAMX/USDT", "MOVR/USDT"
+    "NIL/USDT", "DEXE/USDT", "ENSO/USDT", "HEMI/USDT", "ICP/USDT", "PROM/USDT",
+    "KERNEL/USDT", "SPK/USDT", "GLM/USDT", "MASK/USDT", "DCR/USDT", "LTC/USDT",
+    "EPIC/USDT", "BLUR/USDT", "KSM/USDT", "SOMI/USDT", "AVAX/USDT", "SOL/USDT",
+    "TNSR/USDT", "ORDI/USDT", "CHZ/USDT", "BNB/USDT", "BTC/USDT", "XRP/USDT",
+    "DOGE/USDT", "REQ/USDT", "SFP/USDT", "SUI/USDT", "TRB/USDT", "ALLO/USDT",
+    "FIL/USDT", "DOT/USDT", "AR/USDT", "BIO/USDT", "NEAR/USDT", "LINK/USDT",
+    "PHA/USDT", "LDO/USDT", "ADA/USDT", "METIS/USDT", "APT/USDT", "RENDER/USDT",
+    "PEPE/USDT", "EDEN/USDT", "BAT/USDT", "WLD/USDT", "BEAMX/USDT", "MOVR/USDT"
 ]
 
 LEFT_BARS = 2
@@ -51,26 +67,18 @@ def is_pivot_low(lows, idx):
 def check_confirmed_div(df):
     if len(df) < 100:
         return False, None
-
     df['macd'] = df['close'].ewm(span=12, adjust=False).mean() - df['close'].ewm(span=26, adjust=False).mean()
     df['mm50'] = df['close'].rolling(MM_PERIOD).mean()
-
     if df['close'].iloc[-1] < df['mm50'].iloc[-1]:
         return False, None
-
     lows = df['low'].values
     highs = df['high'].values
     macds = df['macd'].values
-
     p1_idx = len(df) - 1 - RIGHT_BARS
-
     if not is_pivot_low(lows, p1_idx):
         return False, None
-
-    # هذا هو الفلتر لي يحبس RT - لازم 2 شمعات فوق الهاي
     if not (lows[-1] > highs[p1_idx] and lows[-2] > highs[p1_idx]):
         return False, None
-
     for j in range(10, 31):
         p2_idx = p1_idx - j
         if p2_idx < LEFT_BARS:
@@ -87,9 +95,7 @@ def check_confirmed_div(df):
 def main():
     print(f"Bot started - {len(COINS)} coins - CONFIRMED ONLY 2/2 MM50")
     send_telegram(f"✅ Bot démarré\nMode: CONFIRMÉE ONLY (2/2 MM50)\nCoins: {len(COINS)} (قائمتك برك)\nTF: 4H + 1D\nبلا RT")
-
     exchange = ccxt.binance({'enableRateLimit': True})
-
     while True:
         for tf in ['4h', '1d']:
             for symbol in COINS:
