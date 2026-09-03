@@ -19,7 +19,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot BLUE only - No RT")
+        self.wfile.write(b"Bot BLUE only - Fixed")
 
 def run_fake_server():
     port = int(os.environ.get("PORT", 10000))
@@ -52,40 +52,52 @@ def check_blue_only(s, tf):
         df = pd.DataFrame(ohlcv, columns=['t','o','h','l','c','v'])
         if len(df) < 250:
             return None
-
         macd = df['c'].ewm(span=fastLen).mean() - df['c'].ewm(span=slowLen).mean()
         sma = df['c'].rolling(smaLen).mean()
         lows = df['l'].values
         highs = df['h'].values
         closes = df['c'].values
-
         piv_lows = find_pivots(lows, highs, leftBars, rightBars)
         if len(piv_lows) < 2:
             return None
-
         recent_piv = [p for p in piv_lows if p >= len(df)-20]
-
         for p1 in reversed(recent_piv):
             if closes[p1] <= sma.iloc[p1]:
                 continue
-
             res_level = highs[p1 + rightBars]
-            # شرط الكسر: شمعة تكسر واللي قبلها لا = تأكيد جديد
             is_breakout = lows[-1] > res_level and lows[-2] <= res_level
             is_breakout2 = lows[-2] > res_level and lows[-3] <= res_level
             if not (is_breakout or is_breakout2):
                 continue
-
             for p2 in [p for p in piv_lows if p < p1][-lowerLowLookbackBull:]:
                 if lows[p1] >= lows[p2]:
                     continue
                 if macd.iloc[p1] <= macd.iloc[p2]:
                     continue
-
                 cross = False
                 for x in range(p2+1, p1):
                     y = ((lows[p1]-lows[p2])/(p1-p2))*(x-p2)+lows[p2]
                     if lows[x] < y:
                         cross = True
                         break
-                if cross
+                if cross:
+                    continue
+                key = s + tf
+                if key in last_sent_pivot and last_sent_pivot[key] == p1:
+                    return None
+                last_sent_pivot[key] = p1
+                return f"🟦 DIV BLEUE CONFIRMEE\nCoin: {s}\nTF: {tf}\nPrice: {closes[-1]:.4f}"
+    except Exception as e:
+        print(f"Err {s}: {e}")
+        return None
+
+send_telegram("✅ Bot BLUE ONLY ON - Fixed\n42 coins | 4H+DAILY | NO RT")
+
+while True:
+    for tf in ['4h', '1d']:
+        for s in SYMBOLS:
+            m = check_blue_only(s, tf)
+            if m:
+                send_telegram(m)
+            time.sleep(0.7)
+    time.sleep(14400)
