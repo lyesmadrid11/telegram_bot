@@ -1,10 +1,10 @@
 from flask import Flask
-import threading, time, ccxt, pandas as pd, requests, os, sys
+import threading, time, ccxt, pandas as pd, requests, os
 app = Flask(__name__)
 
 @app.route('/', methods=['GET','HEAD'])
 def home():
-    return "Bot BLUE ONLY V4.3 FINAL - RUNNING", 200
+    return "Bot BLUE ONLY V5 BINANCE VISION", 200
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
@@ -21,11 +21,26 @@ def send_telegram(msg):
         print(f"TELEGRAM FAIL: {e}", flush=True)
 
 def get_candles(symbol, tf):
-    for ex_id in ['binance','okx','bybit']:
+    # 1- Binance مجاني بلا بلوك
+    try:
+        ex = ccxt.binance({
+            'enableRateLimit': True,
+            'hostname': 'data-api.binance.vision',
+        })
+        ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
+        if len(ohlcv) > 200:
+            return ohlcv
+    except Exception as e:
+        print(f"BINANCE VISION FAIL {symbol}: {e}", flush=True)
+
+    # 2- احتياط OKX/Bybit
+    for ex_id in ['okx','bybit']:
         try:
             ex = getattr(ccxt, ex_id)({'enableRateLimit': True})
             ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
-            if len(ohlcv) > 200: return ohlcv
+            if len(ohlcv) > 200:
+                print(f"{ex_id} OK {symbol}", flush=True)
+                return ohlcv
         except Exception as e:
             print(f"{ex_id} fail {symbol}: {e}", flush=True)
             continue
@@ -79,17 +94,13 @@ def check_blue_only(symbol, tf):
     return found
 
 def bot_loop():
-    print(">>> BOT LOOP BDA - TESTING...", flush=True)
-    if not TELEGRAM_TOKEN:
-        print(">>> ERROR: TELEGRAM_TOKEN MAKACH!", flush=True)
-    else:
-        print(">>> TOKEN KAYEN", flush=True)
-    send_telegram("✅ V4.5 FIXED بدا - يخدم درك!")
-    count=0
+    print(">>> BOT V5 BDA - BINANCE VISION", flush=True)
+    send_telegram("✅ V5 بدا - Binance رجعت تخدم (مجاني)")
+    loop=0
     while True:
-        count+=1
+        loop+=1
         blue=0
-        print(f">>> DAWRA {count} BDATE - NFAHES {len(SYMBOLS)} 3omla", flush=True)
+        print(f">>> DAWRA {loop} BDATE", flush=True)
         for tf in ['4h','1d']:
             for s in SYMBOLS:
                 try:
@@ -97,12 +108,11 @@ def bot_loop():
                 except Exception as e:
                     print(f"ERROR {s} {tf}: {e}", flush=True)
                 time.sleep(1.5)
-        send_telegram(f"📊 خلص الفحص دورة {count}\nلقا {blue} إشارة 🔵\nيرقد 15د")
+        send_telegram(f"📊 خلص الفحص {loop}\nلقا {blue} إشارة 🔵\nBinance Vision خدام ✅")
         time.sleep(900)
 
-# هادي هي لي تصلح المشكل - برا if __name__
 threading.Thread(target=bot_loop, daemon=True).start()
-print(">>> THREAD TLANSA", flush=True)
+print(">>> THREAD TLANSA V5", flush=True)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
