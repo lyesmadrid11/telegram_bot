@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 @app.route('/', methods=['GET','HEAD'])
 def home():
-    return "Bot V7 OKX+BYBIT", 200
+    return "Bot V8 OKX KUCOIN BITGET GATE - No Block", 200
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
@@ -19,29 +19,49 @@ def send_telegram(msg):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         requests.post(url, data={'chat_id': CHAT_ID, 'text': msg}, timeout=10)
-    except:
-        pass
+    except Exception as e:
+        print(f"TELEGRAM FAIL: {e}", flush=True)
 
 def get_candles(symbol, tf):
-    # 1- OKX أساسي - راه يخدم عندك
+    # 1- OKX اساسي
     try:
         ex = ccxt.okx({'enableRateLimit': True})
         ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
         if len(ohlcv) > 200:
             print(f"OKX OK {symbol}", flush=True)
             return ohlcv
-    except Exception as e:
-        print(f"OKX FAIL {symbol} -> nrouh BYBIT", flush=True)
+    except:
+        print(f"OKX FAIL {symbol} -> KUCOIN", flush=True)
 
-    # 2- BYBIT احتياط - اذا OKX طاح
+    # 2- KUCOIN ما يبلوكيش في Render
     try:
-        ex = ccxt.bybit({'enableRateLimit': True})
+        ex = ccxt.kucoin({'enableRateLimit': True})
         ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
         if len(ohlcv) > 200:
-            print(f"BYBIT OK {symbol}", flush=True)
+            print(f"KUCOIN OK {symbol}", flush=True)
+            return ohlcv
+    except:
+        print(f"KUCOIN FAIL {symbol} -> BITGET", flush=True)
+
+    # 3- BITGET ما يبلوكيش
+    try:
+        ex = ccxt.bitget({'enableRateLimit': True})
+        ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
+        if len(ohlcv) > 200:
+            print(f"BITGET OK {symbol}", flush=True)
+            return ohlcv
+    except:
+        print(f"BITGET FAIL {symbol} -> GATE", flush=True)
+
+    # 4- GATE اخر حل
+    try:
+        ex = ccxt.gate({'enableRateLimit': True})
+        ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
+        if len(ohlcv) > 200:
+            print(f"GATE OK {symbol}", flush=True)
             return ohlcv
     except Exception as e:
-        print(f"BYBIT FAIL {symbol}: {e}", flush=True)
+        print(f"GATE FAIL {symbol}", flush=True)
 
     return []
 
@@ -93,8 +113,8 @@ def check_blue_only(symbol, tf):
     return found
 
 def bot_loop():
-    print(">>> BOT V7 BDA - OKX+BYBIT", flush=True)
-    send_telegram("✅ V7 بدا - OKX+BYBIT بلا Binance")
+    print(">>> BOT V8 BDA - No Block", flush=True)
+    send_telegram("✅ V8 بدا - بلا Binance بلا Bybit")
     loop=0
     while True:
         loop+=1
@@ -111,7 +131,7 @@ def bot_loop():
         time.sleep(900)
 
 threading.Thread(target=bot_loop, daemon=True).start()
-print(">>> THREAD TLANSA V7", flush=True)
+print(">>> THREAD TLANSA V8", flush=True)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
