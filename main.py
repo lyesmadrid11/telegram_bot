@@ -5,7 +5,7 @@ app = Flask(__name__)
 
 @app.route('/', methods=['GET','HEAD'])
 def home():
-    return "Bot V6 FIXED - No Block", 200
+    return "Bot V7 OKX+BYBIT", 200
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
@@ -19,28 +19,11 @@ def send_telegram(msg):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         requests.post(url, data={'chat_id': CHAT_ID, 'text': msg}, timeout=10)
-    except Exception as e:
-        print(f"TELEGRAM FAIL: {e}", flush=True)
+    except:
+        pass
 
 def get_candles(symbol, tf):
-    # الحل المجاني لي ينحي البلوك
-    try:
-        ex = ccxt.binance({
-            'enableRateLimit': True,
-            'urls': {
-                'api': {
-                    'public': 'https://data-api.binance.vision/api',
-                }
-            }
-        })
-        ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
-        if len(ohlcv) > 200:
-            print(f"BINANCE OK {symbol}", flush=True)
-            return ohlcv
-    except Exception as e:
-        print(f"BINANCE FAIL {symbol} -> nrouh OKX", flush=True)
-
-    # OKX راه يخدم عندك 100% شفتو في الصورة
+    # 1- OKX أساسي - راه يخدم عندك
     try:
         ex = ccxt.okx({'enableRateLimit': True})
         ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
@@ -48,8 +31,19 @@ def get_candles(symbol, tf):
             print(f"OKX OK {symbol}", flush=True)
             return ohlcv
     except Exception as e:
-        print(f"OKX FAIL {symbol}: {e}", flush=True)
-        return []
+        print(f"OKX FAIL {symbol} -> nrouh BYBIT", flush=True)
+
+    # 2- BYBIT احتياط - اذا OKX طاح
+    try:
+        ex = ccxt.bybit({'enableRateLimit': True})
+        ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
+        if len(ohlcv) > 200:
+            print(f"BYBIT OK {symbol}", flush=True)
+            return ohlcv
+    except Exception as e:
+        print(f"BYBIT FAIL {symbol}: {e}", flush=True)
+
+    return []
 
 def tema(s, p=21):
     e1 = s.ewm(span=p).mean()
@@ -99,8 +93,8 @@ def check_blue_only(symbol, tf):
     return found
 
 def bot_loop():
-    print(">>> BOT V6 BDA", flush=True)
-    send_telegram("✅ V6 بدا - البلوك تنحا")
+    print(">>> BOT V7 BDA - OKX+BYBIT", flush=True)
+    send_telegram("✅ V7 بدا - OKX+BYBIT بلا Binance")
     loop=0
     while True:
         loop+=1
@@ -113,11 +107,11 @@ def bot_loop():
                 except Exception as e:
                     print(f"ERROR {s}: {e}", flush=True)
                 time.sleep(1.2)
-        send_telegram(f"📊 فحص {loop} خلص\nلقا {blue} إشارة 🔵")
+        send_telegram(f"📊 فحص {loop} خلص - لقا {blue} 🔵")
         time.sleep(900)
 
 threading.Thread(target=bot_loop, daemon=True).start()
-print(">>> THREAD TLANSA V6", flush=True)
+print(">>> THREAD TLANSA V7", flush=True)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
