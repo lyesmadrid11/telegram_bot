@@ -2,6 +2,7 @@ from flask import Flask
 import threading, time, ccxt, pandas as pd, requests, os
 
 app = Flask(__name__)
+
 @app.route('/', methods=['GET','HEAD'])
 def home():
     return "Bot BLUE MM50 Running", 200
@@ -44,11 +45,9 @@ def check_blue_only(symbol, tf):
     df['macd'] = df['ema12'] - df['ema26']
     df['mm50'] = df['c'].rolling(50).mean()
 
-    # 1- فلتر MM50
     if df['c'].iloc[-1] < df['mm50'].iloc[-1]:
         return None
 
-    # 2- Pivots
     left, right = 3, 3
     pivots = []
     for i in range(left, len(df)-right-1):
@@ -64,11 +63,8 @@ def check_blue_only(symbol, tf):
         return None
 
     p1, p2 = pivots[-1], pivots[-2]
-
-    # 3- BLUE ONLY بلا RT
     price_lower_low = df['l'].iloc[p1] < df['l'].iloc[p2]
     macd_higher_low = df['macd'].iloc[p1] > df['macd'].iloc[p2]
-
     last_high = df['h'].iloc[p1-5:p1+5].max()
     breakout = df['c'].iloc[-1] > last_high and df['c'].iloc[-2] > last_high
 
@@ -85,3 +81,21 @@ def bot_loop():
     send_telegram("✅ البوت بدا\nBLUE ONLY + فوق MM50 + 4h+1d\nBinance>OKX>Bybit")
     while True:
         found = 0
+        for tf in ['4h','1d']:
+            for s in SYMBOLS:
+                try:
+                    msg = check_blue_only(s, tf)
+                    if msg:
+                        send_telegram(msg)
+                        found += 1
+                except Exception as e:
+                    print(f"Error {s} {tf}: {e}")
+                time.sleep(0.7)
+        send_telegram(f"📊 ملخص\nفحصت 84 فريم (42 عملة × 4h+1d)\nفلتر: فوق MM50 فقط\nإشارات BLUE مؤكدة: {found}\nالمنصات: Binance>OKX>Bybit")
+        time.sleep(14400)
+
+threading.Thread(target=bot_loop, daemon=True).start()
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host='0.0.0.0', port=port)
