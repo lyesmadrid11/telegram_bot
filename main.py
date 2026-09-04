@@ -1,4 +1,3 @@
-
 from flask import Flask
 import threading, time, ccxt, pandas as pd, requests, os
 app = Flask(__name__)
@@ -23,15 +22,13 @@ def get_candles(symbol, tf):
         try:
             ex = getattr(ccxt, ex_id)({'enableRateLimit': True})
             ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=400)
-            if len(ohlcv) > 200:
-                return ohlcv
+            if len(ohlcv) > 200: return ohlcv
         except: continue
     return []
 
 def check_blue_only(symbol, tf):
     ohlcv = get_candles(symbol, tf)
     if len(ohlcv) < 250: return
-
     df = pd.DataFrame(ohlcv, columns=['ts','o','h','l','c','v'])
     df['ema12'] = df['c'].ewm(span=12).mean()
     df['ema26'] = df['c'].ewm(span=26).mean()
@@ -47,44 +44,47 @@ def check_blue_only(symbol, tf):
                 is_low = False
                 break
         if is_low: pivots.append(i)
-
     if len(pivots) < 2: return None
     p1, p2 = pivots[-1], pivots[-2]
 
+    # ===== فلتر جديد باش نتهناو من ONDO =====
+    # 1- القاع الأخير لازم يكون جديد (أقل من 10 شمعات)
+    if len(df) - p1 > 10:
+        return None
+    # 2- المسافة بين القاعين معقولة
+    if not (5 <= (p1 - p2) <= 100):
+        return None
+    # 3- السعر ما بعدش بزاف على القاع (أقل من 35%)
+    if df['c'].iloc[-1] > df['l'].iloc[p1] * 1.35:
+        return None
+
     price_lower_low = df['l'].iloc[p1] < df['l'].iloc[p2]
     macd_higher_low = df['macd'].iloc[p1] > df['macd'].iloc[p2]
+    macd_negative = df['macd'].iloc[p1] < 0 and df['macd'].iloc[p2] < 0
 
-    # الشرط الأساسي تاع DIV الزرقاء
-    if not (price_lower_low and macd_higher_low):
+    if not (price_lower_low and macd_higher_low and macd_negative):
         return None
 
     is_above = df['c'].iloc[-1] > df['mm50'].iloc[-1]
     last_high = df['h'].iloc[p1-5:p1+5].max()
     breakout = df['c'].iloc[-1] > last_high
-
     key_base = f"{symbol}_{tf}_{p1}"
     key_new = f"NEW_{key_base}"
     key_conf = f"CONF_{key_base}"
 
-    # 1- تنبيه بكري: غير تخرج زرقاء
     if key_new not in SENT_NEW:
         SENT_NEW.add(key_new)
-        if is_above:
-            pos = "فوق MM50 ✅"
-        else:
-            pos = f"تحت MM50 ⚠️ (MM50={df['mm50'].iloc[-1]:.4f})"
+        if is_above: pos = "فوق MM50 ✅"
+        else: pos = f"تحت MM50 ⚠️ (MM50={df['mm50'].iloc[-1]:.4f})"
         send_telegram(f"🔵 BLUE جديدة\n{symbol} {tf}\n{pos}\nسعر: {df['c'].iloc[-1]:.4f}\nوجد روحك")
 
-    # 2- تنبيه تأكيد: كي تطلع فوق MM50 + كسر
     if is_above and breakout:
         if key_conf not in SENT_CONF:
             SENT_CONF.add(key_conf)
             send_telegram(f"✅ BLUE CONFIRMED MM50\n{symbol} {tf}\nفوق MM50 ✅\nكسر {last_high:.4f}")
 
-    return None
-
 def bot_loop():
-    send_telegram("✅ البوت بدا V2\n🔵 تنبيه أول كي تخرج زرقاء\n✅ تنبيه ثاني فوق MM50\n4h+1d")
+    send_telegram("✅ البوت بدا V3 - فلتر جديد\n🔵 غير القيعان الجديدة\n✅ ما يبعثش القديم")
     while True:
         for tf in ['4h','1d']:
             for s in SYMBOLS:
