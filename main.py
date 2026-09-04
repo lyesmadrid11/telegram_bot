@@ -1,13 +1,15 @@
 from flask import Flask
 import threading, time, ccxt, pandas as pd, requests, os
+
 app = Flask(__name__)
 
 @app.route('/', methods=['GET','HEAD'])
 def home():
-    return "Bot BLUE ONLY V5 BINANCE VISION", 200
+    return "Bot V6 FIXED - No Block", 200
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
+
 SYMBOLS = ['BTC/USDT','ETH/USDT','BNB/USDT','SOL/USDT','XRP/USDT','ADA/USDT','AVAX/USDT','DOT/USDT','LINK/USDT','LTC/USDT','NEAR/USDT','APT/USDT','AR/USDT','ICP/USDT','FIL/USDT','GRT/USDT','AAVE/USDT','UNI/USDT','LDO/USDT','KSM/USDT','MOVR/USDT','METIS/USDT','PROM/USDT','EPIC/USDT','DCR/USDT','BAT/USDT','DEXE/USDT','TRB/USDT','WLD/USDT','BLUR/USDT','BIO/USDT','ORDI/USDT','INJ/USDT','TAO/USDT','RENDER/USDT','FET/USDT','TIA/USDT','SEI/USDT','SUI/USDT','ARB/USDT','PENDLE/USDT','ONDO/USDT']
 
 SENT_NEW = set()
@@ -21,30 +23,33 @@ def send_telegram(msg):
         print(f"TELEGRAM FAIL: {e}", flush=True)
 
 def get_candles(symbol, tf):
-    # 1- Binance مجاني بلا بلوك
+    # الحل المجاني لي ينحي البلوك
     try:
         ex = ccxt.binance({
             'enableRateLimit': True,
-            'hostname': 'data-api.binance.vision',
+            'urls': {
+                'api': {
+                    'public': 'https://data-api.binance.vision/api',
+                }
+            }
         })
         ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
         if len(ohlcv) > 200:
+            print(f"BINANCE OK {symbol}", flush=True)
             return ohlcv
     except Exception as e:
-        print(f"BINANCE VISION FAIL {symbol}: {e}", flush=True)
+        print(f"BINANCE FAIL {symbol} -> nrouh OKX", flush=True)
 
-    # 2- احتياط OKX/Bybit
-    for ex_id in ['okx','bybit']:
-        try:
-            ex = getattr(ccxt, ex_id)({'enableRateLimit': True})
-            ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
-            if len(ohlcv) > 200:
-                print(f"{ex_id} OK {symbol}", flush=True)
-                return ohlcv
-        except Exception as e:
-            print(f"{ex_id} fail {symbol}: {e}", flush=True)
-            continue
-    return []
+    # OKX راه يخدم عندك 100% شفتو في الصورة
+    try:
+        ex = ccxt.okx({'enableRateLimit': True})
+        ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
+        if len(ohlcv) > 200:
+            print(f"OKX OK {symbol}", flush=True)
+            return ohlcv
+    except Exception as e:
+        print(f"OKX FAIL {symbol}: {e}", flush=True)
+        return []
 
 def tema(s, p=21):
     e1 = s.ewm(span=p).mean()
@@ -94,25 +99,25 @@ def check_blue_only(symbol, tf):
     return found
 
 def bot_loop():
-    print(">>> BOT V5 BDA - BINANCE VISION", flush=True)
-    send_telegram("✅ V5 بدا - Binance رجعت تخدم (مجاني)")
+    print(">>> BOT V6 BDA", flush=True)
+    send_telegram("✅ V6 بدا - البلوك تنحا")
     loop=0
     while True:
         loop+=1
         blue=0
-        print(f">>> DAWRA {loop} BDATE", flush=True)
+        print(f">>> DAWRA {loop}", flush=True)
         for tf in ['4h','1d']:
             for s in SYMBOLS:
                 try:
                     if check_blue_only(s, tf): blue+=1
                 except Exception as e:
-                    print(f"ERROR {s} {tf}: {e}", flush=True)
-                time.sleep(1.5)
-        send_telegram(f"📊 خلص الفحص {loop}\nلقا {blue} إشارة 🔵\nBinance Vision خدام ✅")
+                    print(f"ERROR {s}: {e}", flush=True)
+                time.sleep(1.2)
+        send_telegram(f"📊 فحص {loop} خلص\nلقا {blue} إشارة 🔵")
         time.sleep(900)
 
 threading.Thread(target=bot_loop, daemon=True).start()
-print(">>> THREAD TLANSA V5", flush=True)
+print(">>> THREAD TLANSA V6", flush=True)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
