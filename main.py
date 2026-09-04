@@ -1,8 +1,10 @@
 from flask import Flask
-import threading, time, ccxt, pandas as pd, requests, os
+import threading, time, ccxt, pandas as pd, requests, os, sys
 app = Flask(__name__)
+
 @app.route('/', methods=['GET','HEAD'])
-def home(): return "Bot BLUE ONLY V4.3 FINAL", 200
+def home():
+    return "Bot BLUE ONLY V4.3 FINAL - RUNNING", 200
 
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 CHAT_ID = os.getenv('CHAT_ID')
@@ -15,7 +17,8 @@ def send_telegram(msg):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         requests.post(url, data={'chat_id': CHAT_ID, 'text': msg}, timeout=10)
-    except: pass
+    except Exception as e:
+        print(f"TELEGRAM FAIL: {e}", flush=True)
 
 def get_candles(symbol, tf):
     for ex_id in ['binance','okx','bybit']:
@@ -23,7 +26,9 @@ def get_candles(symbol, tf):
             ex = getattr(ccxt, ex_id)({'enableRateLimit': True})
             ohlcv = ex.fetch_ohlcv(symbol, timeframe=tf, limit=500)
             if len(ohlcv) > 200: return ohlcv
-        except: continue
+        except Exception as e:
+            print(f"{ex_id} fail {symbol}: {e}", flush=True)
+            continue
     return []
 
 def tema(s, p=21):
@@ -34,14 +39,13 @@ def tema(s, p=21):
 
 def check_blue_only(symbol, tf):
     ohlcv = get_candles(symbol, tf)
-    if len(ohlcv) < 250: return
+    if len(ohlcv) < 250: return False
     df = pd.DataFrame(ohlcv, columns=['ts','o','h','l','c','v'])
     df['ema12'] = df['c'].ewm(span=12).mean()
     df['ema26'] = df['c'].ewm(span=26).mean()
     df['macd'] = df['ema12'] - df['ema26']
     df['mm50'] = df['c'].rolling(50).mean()
     df['tema'] = tema(df['c'], 21)
-
     left, right = 3, 3
     piv_lows = []
     for i in range(left, len(df)-right-1):
@@ -50,45 +54,56 @@ def check_blue_only(symbol, tf):
             if df['l'].iloc[i] >= df['l'].iloc[i-k] or df['l'].iloc[i] >= df['l'].iloc[i+k]:
                 ok=False; break
         if ok: piv_lows.append(i)
-
-    if len(piv_lows) < 2: return
+    if len(piv_lows) < 2: return False
     p1, p2 = piv_lows[-1], piv_lows[-2]
-
-    # تمتم = أقل من 5 شمعات
-    if len(df) - p1 > 5: return
-    if not (5 <= (p1 - p2) <= 100): return
-    if df['c'].iloc[-1] > df['l'].iloc[p1] * 1.35: return
-    if not (df['l'].iloc[p1] < df['l'].iloc[p2] and df['macd'].iloc[p1] > df['macd'].iloc[p2] and df['macd'].iloc[p1] < 0):
-        return
-    # فلتر باش ما يبعثش ONDO الكاذب - يطابق صورتك
-    if df['c'].iloc[-1] < df['tema'].iloc[-1]: return
-    if df['tema'].iloc[-1] <= df['tema'].iloc[-2]: return
-
+    if len(df) - p1 > 5: return False
+    if not (5 <= (p1 - p2) <= 100): return False
+    if df['c'].iloc[-1] > df['l'].iloc[p1] * 1.35: return False
+    if not (df['l'].iloc[p1] < df['l'].iloc[p2] and df['macd'].iloc[p1] > df['macd'].iloc[p2] and df['macd'].iloc[p1] < 0): return False
+    if df['c'].iloc[-1] < df['tema'].iloc[-1]: return False
+    if df['tema'].iloc[-1] <= df['tema'].iloc[-2]: return False
     is_above = df['c'].iloc[-1] > df['mm50'].iloc[-1]
     last_high = df['h'].iloc[p1-5:p1+5].max()
     breakout = df['c'].iloc[-1] > last_high
     key_base = f"{symbol}_{tf}_{p1}"
-
+    found=False
     if f"NEW_{key_base}" not in SENT_NEW:
         SENT_NEW.add(f"NEW_{key_base}")
-        pos = "فوق MM50 ✅" if is_above else f"تحت MM50 ⚠️"
+        found=True
+        pos = "فوق MM50 ✅" if is_above else "تحت MM50 ⚠️"
         send_telegram(f"🔵 BLUE جديدة - {symbol} {tf}\n{pos}\nسعر: {df['c'].iloc[-1]:.4f}")
-
     if is_above and breakout and f"CONF_{key_base}" not in SENT_CONF:
         SENT_CONF.add(f"CONF_{key_base}")
+        found=True
         send_telegram(f"✅ BLUE CONFIRMED - {symbol} {tf}\nكسر {last_high:.4f}")
+    return found
 
 def bot_loop():
-    send_telegram("✅ V4.3 FINAL بدا\n🔵 غير BLUE تمتم\n❌ بلا RT\n✅ ما يبعثش ONDO الكاذب")
+    print(">>> BOT LOOP BDA - TESTING...", flush=True)
+    if not TELEGRAM_TOKEN:
+        print(">>> ERROR: TELEGRAM_TOKEN MAKACH!", flush=True)
+    else:
+        print(">>> TOKEN KAYEN", flush=True)
+    send_telegram("✅ V4.5 FIXED بدا - يخدم درك!")
+    count=0
     while True:
+        count+=1
+        blue=0
+        print(f">>> DAWRA {count} BDATE - NFAHES {len(SYMBOLS)} 3omla", flush=True)
         for tf in ['4h','1d']:
             for s in SYMBOLS:
-                try: check_blue_only(s, tf)
-                except: pass
-                time.sleep(0.7)
+                try:
+                    if check_blue_only(s, tf): blue+=1
+                except Exception as e:
+                    print(f"ERROR {s} {tf}: {e}", flush=True)
+                time.sleep(1.5)
+        send_telegram(f"📊 خلص الفحص دورة {count}\nلقا {blue} إشارة 🔵\nيرقد 15د")
         time.sleep(900)
 
+# هادي هي لي تصلح المشكل - برا if __name__
 threading.Thread(target=bot_loop, daemon=True).start()
+print(">>> THREAD TLANSA", flush=True)
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
